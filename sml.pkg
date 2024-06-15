@@ -1,0 +1,3 @@
+require {
+  github.com/diku-dk/sml-http 0.0.12 #e928b4f386d63c3bc4a721219f4cc102ab2eb3d3
+}
