@@ -1,6 +1,8 @@
 ## Smelly
 
-Smelly is probably one of the top ten* HTTP server framework for Standard ML.
+Smelly is probably one of the top ten* HTTP server frameworks for Standard ML.
+
+Made with [sml-http](https://github.com/diku-dk/sml-http/tree/main).
 
 ![nose](nose.jpeg)
 
