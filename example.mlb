@@ -1,0 +1,8 @@
+local
+  $(SML_LIB)/basis/basis.mlb
+  lib/github.com/diku-dk/sml-http/http.mlb
+  lib/github.com/fabjan/smelly/smelly.mlb
+  example/midservice.sml
+in
+  example/main.sml
+end

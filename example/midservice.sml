@@ -14,14 +14,18 @@
  * limitations under the License.
  *)
 
+structure Log = Smelly.Log
+
+fun eq a b = a = b
+
 (*
  * A simplish HTTP service.
  *)
 
-fun method (req: MyHttp.request) : Http.Request.method =
+fun method (req: Smelly.request) : Http.Request.method =
   #method (#line req)
 
-fun path (req: MyHttp.request) : string =
+fun path (req: Smelly.request) : string =
   case #uri (#line req) of
       Http.Uri.PATH p => #path p
     | Http.Uri.URL u => #path u
@@ -35,10 +39,10 @@ fun mkResponse status contentType body =
       ("Content-Length", Int.toString (String.size body))
     ]
   in
-    MyHttp.mkResponse status headers body
+    Smelly.mkResponse status headers body
   end
 
-fun router (req: MyHttp.request) =
+fun router (req: Smelly.request) =
   case (method req, String.tokens (eq #"/") (path req)) of
       (Http.Request.GET, []) => mkResponse Http.StatusCode.OK "text/plain" "Hello, World!\n"
     | _ => mkResponse Http.StatusCode.NotFound "text/plain" "Not found\n"
@@ -46,7 +50,7 @@ fun router (req: MyHttp.request) =
 fun main () =
   let
     val _ = Log.setLevel Log.INFO
-    val sock = INetSock.TCP.socket () : MyHttp.listen_sock
+    val sock = INetSock.TCP.socket () : Smelly.listen_sock
     val portOpt = Option.mapPartial Int.fromString (OS.Process.getEnv "PORT")
     val port = case portOpt of
         NONE => 3000
@@ -56,5 +60,5 @@ fun main () =
     Socket.bind (sock, INetSock.any port);
     Socket.listen (sock, 5);
     Log.info ("Listening on port " ^ (Int.toString port));
-    MyHttp.serve sock router
+    Smelly.serve sock router
   end

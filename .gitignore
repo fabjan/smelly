@@ -2,5 +2,5 @@
 _build/
 polybuild
 
-# smlpmg handles this
-lib/
+# smlpkg deps
+lib/github.com/diku-dk

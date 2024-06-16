@@ -14,8 +14,12 @@
  * limitations under the License.
  *)
 
-structure MyHttp =
+structure Smelly =
 struct
+
+structure Log = Log
+
+datatype ('a, 'b) result = Ok of 'a | Error of 'b
 
 type listen_sock = (Socket.passive Socket.stream) INetSock.sock
 type active_sock = (Socket.active Socket.stream) INetSock.sock
@@ -89,7 +93,7 @@ fun parseRequest (sock: active_sock) : (request, Http.StatusCode.t) result =
               let
                 val headers = Http.Request.parse_headers Substring.getc headers
                 val headers = Option.map #1 headers
-                val headers = fromOpt [] headers
+                val headers = case headers of NONE => [] | SOME h => h
               in
                 Ok {line = line, headers = headers, sock = sock}
               end

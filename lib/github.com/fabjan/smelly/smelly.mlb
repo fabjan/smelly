@@ -1,0 +1,7 @@
+local
+  $(SML_LIB)/basis/basis.mlb
+  ../../diku-dk/sml-http/http.mlb
+  log.sml
+in
+  smelly.sml
+end
