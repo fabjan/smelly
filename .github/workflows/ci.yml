@@ -32,9 +32,11 @@ jobs:
             polyc)
               sudo apt-get install -y polyml libpolyml-dev
               poly -v
+              ;;
             *)
-              echo dunno how to install $SML_COMPILER
+              echo dunno how to install "$SML_COMPILER"
               exit 1
+              ;;
           esac
 
       - name: Build
