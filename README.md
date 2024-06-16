@@ -1,5 +1,6 @@
 ## Smelly
 
+![ci-badge](https://github.com/fabjan/smelly/actions/workflows/ci.yml/badge.svg)
 Smelly is probably one of the top ten* HTTP server frameworks for Standard ML.
 
 ![nose](nose.jpeg)
