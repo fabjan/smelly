@@ -13,14 +13,16 @@ jobs:
 
     strategy:
       matrix:
-        include:
-          - env:
-              SML_COMPILER: polyc
-          - env:
-              SML_COMPILER: mlton
+        sml_compiler:
+          - polyc
+          - mlton
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup environment
+        run: |
+          echo "SML_COMPILER=${{ matrix.sml_compiler }}" >> $GITHUB_ENV
 
       - name: Install Compiler
         run: |
