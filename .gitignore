@@ -2,5 +2,8 @@
 _build/
 polybuild
 
+# test artifacts
+*.output
+
 # smlpkg deps
 lib/github.com/diku-dk
