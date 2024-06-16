@@ -2,22 +2,21 @@
 
 Smelly is probably one of the top ten* HTTP server frameworks for Standard ML.
 
-Made with [sml-http](https://github.com/diku-dk/sml-http/tree/main).
-
 ![nose](nose.jpeg)
 
 ```sml
 structure Log = Smelly.Log
+structure Http = Smelly.Http
 
-fun router (req: Smelly.request) =
+fun router (req: Http.Request.t) =
   let
-    val method = Smelly.method req
-    val path = String.tokens (fn c => c = #"/") (Smelly.path req)
+    val method = #method req
+    val path = String.tokens (fn c => c = #"/") (#path req)
   in
     case (method, path) of
-      (Http.Request.GET, []) => Smelly.textResponse Http.StatusCode.OK [] "Hello, World!\n"
-    | (Http.Request.GET, name::_) => Smelly.textResponse Http.StatusCode.OK [] ("Hello, " ^ name ^ "!\n")
-    | _ => Smelly.textResponse Http.StatusCode.NotFound [] "Not found\n"
+      (Http.Method.Get, []) => Smelly.textResponse Http.Status.Ok [] "Hello, World!\n"
+    | (Http.Method.Get, name::_) => Smelly.textResponse Http.Status.Ok [] ("Hello, " ^ name ^ "!\n")
+    | _ => Smelly.textResponse Http.Status.NotFound [] "Not found\n"
   end
 
 fun main () =
@@ -35,8 +34,6 @@ fun main () =
     Log.info ("Listening on port " ^ (Int.toString port));
     Smelly.serve sock router
   end
-
-
 ```
 
 \*please open an issue if/when this number needs bumping
