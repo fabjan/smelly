@@ -36,7 +36,7 @@ build () {
                 polyc -o polybuild polybuild.sml
             fi
             POLY_TOPLEVEL=$BUILD_DIR/"$BUILD_FILE".poly.sml
-            ./polybuild "$BUILD_FILE" | grep -v "src/main.sml" > "$POLY_TOPLEVEL"
+            ./polybuild "$BUILD_FILE" | grep -v "/main.sml" > "$POLY_TOPLEVEL"
             log "Compiling $POLY_TOPLEVEL"
             polyc -o $BUILD_DIR/"$PROG" "$POLY_TOPLEVEL"
             ;;
