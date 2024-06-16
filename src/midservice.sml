@@ -27,8 +27,6 @@ fun path (req: MyHttp.request) : string =
     | Http.Uri.URL u => #path u
     | _ => "/"
 
-fun eq a b = a = b
-
 fun pushBytes _ _ 0 = ()
   | pushBytes sock bytes n =
     let

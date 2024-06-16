@@ -26,11 +26,23 @@ type request = {
   sock: active_sock
 }
 
-fun mkResponse status headers body : Http.Response.t =
-  {line = {version = Http.Version.HTTP_1_0, status = status}, headers = headers, body = SOME body}
+type response = {
+  status: Http.StatusCode.t,
+  headers: (string * string) list,
+  body: string
+}
 
-fun encodeResponse response =
-  Http.Response.toString response
+fun mkResponse status headers body : response =
+  {status = status, headers = headers, body = body}
+
+fun encodeResponse (response: response) =
+  let
+    val line = {version = Http.Version.HTTP_1_0, status = #status response}
+    val headers = #headers response
+    val body = #body response
+  in
+    Http.Response.toString {line = line, headers = headers, body = SOME body}
+  end
 
 fun slurpUpTo (pattern: string) (sock: active_sock) =
   let
@@ -58,11 +70,6 @@ fun slurpUpTo (pattern: string) (sock: active_sock) =
     slurp [] 8
   end
 
-fun optOr (SOME x) _ = x
-  | optOr NONE y = y
-
-datatype ('a, 'b) result = Ok of 'a | Error of 'b
-
 fun parseRequest (sock: active_sock) : (request, string) result =
   case Http.Request.parse_line Substring.getc (slurpUpTo "\n" sock) of
     NONE => Error "cannot parse request line"
@@ -70,8 +77,9 @@ fun parseRequest (sock: active_sock) : (request, string) result =
       let
         val headers = Http.Request.parse_headers Substring.getc (slurpUpTo "\r\n\r\n" sock)
         val headers = Option.map #1 headers
+        val headers = fromOpt [] headers
       in
-        Ok {line = line, headers = (optOr headers []), sock = sock}
+        Ok {line = line, headers = headers, sock = sock}
       end
 
 fun serve (sock: listen_sock) handler =
