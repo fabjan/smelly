@@ -1,0 +1,48 @@
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+
+  test:
+    runs-on: ubuntu-20.04
+
+    strategy:
+      matrix:
+        sml_compiler:
+          - polyc
+          - mlton
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup environment
+        run: |
+          echo "SML_COMPILER=${{ matrix.sml_compiler }}" >> $GITHUB_ENV
+
+      - name: Install Compiler
+        run: |
+          case "$SML_COMPILER" in
+            mlton)
+              sudo apt-get install -y mlton
+              mlton
+              ;;
+            polyc)
+              sudo apt-get install -y polyml libpolyml-dev
+              poly -v
+              ;;
+            *)
+              echo dunno how to install "$SML_COMPILER"
+              exit 1
+              ;;
+          esac
+
+      - name: Build
+        run: ./build.sh
+
+      - name: Run tests
+        run: ./test.sh --no-wrk

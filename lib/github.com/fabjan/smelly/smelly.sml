@@ -18,6 +18,8 @@ local
 
 fun filterMap f l = List.foldr (fn (x, xs) => case f x of SOME y => y::xs | NONE => xs) [] l
 
+open Http
+
 in
 
 structure Smelly =
@@ -25,77 +27,42 @@ struct
 
 structure Log = Log
 
+structure Http = Http
+
 datatype ('a, 'b) result = Ok of 'a | Error of 'b
 
 type listen_sock = (Socket.passive Socket.stream) INetSock.sock
 type active_sock = (Socket.active Socket.stream) INetSock.sock
 
-type request = {
-  line: Http.Request.line,
-  headers: (string * string) list,
-  sock: active_sock
-}
+type http_handler = Request.t -> Response.t
 
-fun method (req: request) : Http.Request.method =
-  #method (#line req)
-
-fun path (req: request) : string =
-  case #uri (#line req) of
-      Http.Uri.PATH p => #path p
-    | Http.Uri.URL u => #path u
-    | _ => "/"
-
-fun query (req: request) : string =
-  case #uri (#line req) of
-      Http.Uri.URL u => #query u
-    | Http.Uri.PATH p => #query p
-    | _ => ""
-
-fun parseQuery (req: request) : (string * string) list =
-  let
-    val query = query req
-    val params = String.tokens (fn c => c = #"&") query
-    val pairs = List.map (fn s => String.tokens (fn c => c = #"=") s) params
-    fun parse (k::v::[]) = SOME (k, v)
-      | parse [k] = SOME (k, "")
-      | parse _ = NONE
-  in
-    filterMap parse pairs
-  end
-
-type response = {
-  status: Http.StatusCode.t,
-  headers: (string * string) list,
-  (* FIXME: binary? *)
-  body: string
-}
-
-type http_handler = request -> response
-
-fun mkResponse status headers body : response =
-  {status = status, headers = headers, body = body}
-
-fun textResponse status headers body : response =
+fun textResponse status headers body : Response.t =
   let
     val headers = ("Content-Type", "text/plain")::headers
     val headers = ("Content-Length", Int.toString (String.size body))::headers
   in
-    mkResponse status headers body
+    {status = status, headers = headers, body = body}
   end
 
-fun encodeResponse (response: response) : string =
+fun encodeResponse (rep: Response.t) : string =
   let
-    val line = {version = Http.Version.HTTP_1_0, status = #status response}
-    val headers = #headers response
+    val headers = #headers rep
     val headers = ("Server", "Smelly")::headers
-    val body = #body response
+    val body = #body rep
+    fun encodeHeader (k, v) = k ^ ": " ^ v ^ "\r\n"
   in
-    Http.Response.toString {line = line, headers = headers, body = SOME body}
+    (* FIXME: correcterer version? *)
+    String.concat [
+      "HTTP/1.0 ", Status.toString (#status rep), "\r\n",
+      String.concat (map encodeHeader headers),
+      "\r\n",
+      body
+    ]
   end
 
 datatype slurp_error = NoData | TooMuchData
 
-fun slurpUpTo (pattern: string) (sock: active_sock) : (Substring.substring, slurp_error) result =
+fun slurpUpTo (pattern: string) (sock: active_sock) : (string, slurp_error) result =
   let
     fun slurp _ 0 = Error TooMuchData
       | slurp acc limit =
@@ -115,31 +82,26 @@ fun slurpUpTo (pattern: string) (sock: active_sock) : (Substring.substring, slur
               val last = Socket.recvVec (sock, discardCount)
               val slurped = String.concat (List.rev (Byte.bytesToString last::acc))
             in
-              Ok (Substring.full slurped)
+              Ok slurped
             end
       end
   in
     slurp [] 8
   end
 
-fun parseRequest (sock: active_sock) : (request, Http.StatusCode.t) result =
+(* FIXME: body *)
+fun slurpRequest (sock: active_sock) : (Request.t, Status.t) result =
   case slurpUpTo "\n" sock of
-    Error _ => Error Http.StatusCode.BadRequest
+    Error _ => Error Status.BadRequest
   | Ok reqLine =>
-      case Http.Request.parse_line Substring.getc reqLine of
-        NONE => Error Http.StatusCode.BadRequest
-      | SOME (line, _) =>
-          case slurpUpTo "\r\n\r\n" sock of
-            Error _ => Error Http.StatusCode.BadRequest
-          | Ok headersString =>
-              let
-                val headers = Http.Request.parse_headers Substring.getc headersString
-                val headers = Option.getOpt (Option.map #1 headers, [])
-              in
-                Ok {line = line, headers = headers, sock = sock}
-              end
+      case slurpUpTo "\r\n\r\n" sock of
+        Error _ => Error Status.BadRequest
+      | Ok headersString =>
+          case Request.parse reqLine headersString of
+            NONE => Error Status.BadRequest
+          | SOME req => Ok req
 
-fun respond (sock: active_sock) (rep: response) =
+fun respond (sock: active_sock) (rep: Response.t) =
   let
     val str = encodeResponse rep
     val bytes = Byte.stringToBytes str
@@ -157,10 +119,10 @@ fun respond (sock: active_sock) (rep: response) =
 
 fun handleClient (sock: active_sock) (handler: http_handler) =
   let
-    val req = parseRequest sock
+    val req = slurpRequest sock
   in
     case req of
-      Error e => respond sock (mkResponse e [] "")
+      Error e => respond sock (Response.mk e [] "")
     | Ok req => respond sock (handler req)
     ;
     Socket.close sock

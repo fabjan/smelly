@@ -15,10 +15,15 @@
  *)
 
 structure Log = Smelly.Log
+structure Http = Smelly.Http
+
+local
+
+open Http
 
 fun eq a b = a = b
 
-datatype greet_style = Loud | Quiet | Default
+datatype style = Loud | Default | Quiet
 
 fun stringToUpper s = String.implode (List.map Char.toUpper (String.explode s))
 
@@ -26,24 +31,33 @@ fun greet Loud (name: string) = "HELLO, " ^ (stringToUpper name) ^ "!!!\n"
   | greet Default (name: string) = "Hello, " ^ name ^ "!\n"
   | greet Quiet (name: string) = "hi " ^ name ^ "\n"
 
-fun greeter (params: (string*string) list) (name: string) =
-  case List.find (fn (k, _) => k = "style") params of
-    NONE => Smelly.textResponse Http.StatusCode.OK [] (greet Default name)
-  | SOME (_, "loud") => Smelly.textResponse Http.StatusCode.OK [] (greet Loud name)
-  | SOME (_, "quiet") => Smelly.textResponse Http.StatusCode.OK [] (greet Quiet name)
-  | _ => Smelly.textResponse Http.StatusCode.BadRequest [] "Bad style\n"
+fun stringToStyle s =
+  case s of
+    "loud" => SOME Loud
+  | "quiet" => SOME Quiet
+  | _ => NONE
 
-fun router (req: Smelly.request) =
+fun greeter style (SOME extra) name = greeter style NONE (name ^ "-" ^ extra)
+  | greeter NONE NONE name = Smelly.textResponse Status.Ok [] (greet Default name)
+  | greeter (SOME s) NONE name =
+      case stringToStyle s of
+        SOME style => Smelly.textResponse Status.Ok [] (greet style name)
+      | NONE => Smelly.textResponse Status.BadRequest [] ("Bad style: " ^ s ^ "\n")
+
+fun router (req: Request.t) =
   let
-    val method = Smelly.method req
-    val path = String.tokens (eq #"/") (Smelly.path req)
-    val params = Smelly.parseQuery req
+    val method = #method req
+    val path = String.tokens (eq #"/") (#path req)
+    val style = Http.Request.param req "style"
+    val extra = Http.Request.param req "  "
   in
     case (method, path) of
-      (Http.Request.GET, []) => greeter params "world"
-    | (Http.Request.GET, name::_) => greeter params name
-    | _ => Smelly.textResponse Http.StatusCode.NotFound [] "Not found\n"
+      (Method.Get, []) => greeter style extra "world"
+    | (Method.Get, name::_) => greeter style extra name
+    | _ => Smelly.textResponse Status.NotFound [] "Not found\n"
   end
+
+in
 
 fun main () =
   let
@@ -65,3 +79,5 @@ fun main () =
     Log.error (General.exnMessage e);
     OS.Process.exit OS.Process.failure
   )
+
+end
