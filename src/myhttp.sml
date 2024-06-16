@@ -29,13 +29,14 @@ type request = {
 type response = {
   status: Http.StatusCode.t,
   headers: (string * string) list,
+  (* FIXME: binary? *)
   body: string
 }
 
 fun mkResponse status headers body : response =
   {status = status, headers = headers, body = body}
 
-fun encodeResponse (response: response) =
+fun encodeResponse (response: response) : string =
   let
     val line = {version = Http.Version.HTTP_1_0, status = #status response}
     val headers = #headers response
@@ -44,7 +45,7 @@ fun encodeResponse (response: response) =
     Http.Response.toString {line = line, headers = headers, body = SOME body}
   end
 
-fun slurpUpTo (pattern: string) (sock: active_sock) =
+fun slurpUpTo (pattern: string) (sock: active_sock) : Substring.substring =
   let
     fun slurp _ 0 = raise Fail "too much header data"
       | slurp acc tries =
@@ -82,7 +83,7 @@ fun parseRequest (sock: active_sock) : (request, string) result =
         Ok {line = line, headers = headers, sock = sock}
       end
 
-fun serve (sock: listen_sock) handler =
+fun serve (sock: listen_sock) handler : unit =
   let
     val _ = Log.debug "Waiting for connection..."
     val (clientSock, _) = Socket.accept sock
@@ -96,6 +97,5 @@ fun serve (sock: listen_sock) handler =
     handle e => Log.error (exnMessage e);
     serve sock handler
   end
-
 
 end
