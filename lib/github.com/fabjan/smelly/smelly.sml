@@ -14,6 +14,12 @@
  * limitations under the License.
  *)
 
+local
+
+fun filterMap f l = List.foldr (fn (x, xs) => case f x of SOME y => y::xs | NONE => xs) [] l
+
+in
+
 structure Smelly =
 struct
 
@@ -38,6 +44,24 @@ fun path (req: request) : string =
       Http.Uri.PATH p => #path p
     | Http.Uri.URL u => #path u
     | _ => "/"
+
+fun query (req: request) : string =
+  case #uri (#line req) of
+      Http.Uri.URL u => #query u
+    | Http.Uri.PATH p => #query p
+    | _ => ""
+
+fun parseQuery (req: request) : (string * string) list =
+  let
+    val query = query req
+    val params = String.tokens (fn c => c = #"&") query
+    val pairs = List.map (fn s => String.tokens (fn c => c = #"=") s) params
+    fun parse (k::v::[]) = SOME (k, v)
+      | parse [k] = SOME (k, "")
+      | parse _ = NONE
+  in
+    filterMap parse pairs
+  end
 
 type response = {
   status: Http.StatusCode.t,
@@ -107,11 +131,10 @@ fun parseRequest (sock: active_sock) : (request, Http.StatusCode.t) result =
       | SOME (line, _) =>
           case slurpUpTo "\r\n\r\n" sock of
             Error _ => Error Http.StatusCode.BadRequest
-          | Ok headers =>
+          | Ok headersString =>
               let
-                val headers = Http.Request.parse_headers Substring.getc headers
-                val headers = Option.map #1 headers
-                val headers = case headers of NONE => [] | SOME h => h
+                val headers = Http.Request.parse_headers Substring.getc headersString
+                val headers = Option.getOpt (Option.map #1 headers, [])
               in
                 Ok {line = line, headers = headers, sock = sock}
               end
@@ -134,7 +157,6 @@ fun respond (sock: active_sock) (rep: response) =
 
 fun handleClient (sock: active_sock) (handler: http_handler) =
   let
-    val _ = Log.debug "Connection accepted, parsing request"
     val req = parseRequest sock
   in
     case req of
@@ -147,11 +169,12 @@ fun handleClient (sock: active_sock) (handler: http_handler) =
 
 fun serve (sock: listen_sock) (handler: http_handler) : unit =
   let
-    val _ = Log.debug "Waiting for connection..."
     val (clientSock, _) = Socket.accept sock
   in
     handleClient clientSock handler;
     serve sock handler
   end
+
+end
 
 end
