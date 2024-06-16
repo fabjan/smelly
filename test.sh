@@ -2,12 +2,6 @@
 
 set -e
 
-if ! command -v wrk > /dev/null
-then
-    echo "wrk not found, please install it"
-    exit 1
-fi
-
 testbin=_build/example
 testout=test.output
 
@@ -55,10 +49,15 @@ curlcheck()
 # Run the tests
 
 case "$@" in
-    --fast)
+    --no-wrk)
         echo "Skipping wrk test"
         ;;
     *)
+        if ! command -v wrk > /dev/null
+        then
+            echo "wrk not found, please install it"
+            exit 1
+        fi
         duration=2
         printf "Running wrk test for %s seconds ..." $duration
         wrk -d$duration 'http://localhost:3000' > wrk.output

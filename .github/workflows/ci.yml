@@ -1,0 +1,44 @@
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        include:
+          - env:
+              SML_COMPILER: polyc
+          - env:
+              SML_COMPILER: mlton
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Compiler
+        run: |
+          case "$SML_COMPILER" in
+            mlton)
+              sudo apt-get install -y mlton
+              mlton
+              ;;
+            polyc)
+              sudo apt-get install -y polyml libpolyml-dev
+              poly -v
+            *)
+              echo dunno how to install $SML_COMPILER
+              exit 1
+          esac
+
+      - name: Build
+        run: ./build.sh
+
+      - name: Run tests
+        run: ./test.sh --no-wrk
