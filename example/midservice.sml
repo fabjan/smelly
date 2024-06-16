@@ -22,37 +22,24 @@ fun eq a b = a = b
  * A simplish HTTP service.
  *)
 
-fun method (req: Smelly.request) : Http.Request.method =
-  #method (#line req)
-
-fun path (req: Smelly.request) : string =
-  case #uri (#line req) of
-      Http.Uri.PATH p => #path p
-    | Http.Uri.URL u => #path u
-    | _ => "/"
-
-fun mkResponse status contentType body =
-  let
-    val headers = [
-      ("Server", "MyHttp"),
-      ("Content-Type", contentType),
-      ("Content-Length", Int.toString (String.size body))
-    ]
-  in
-    Smelly.mkResponse status headers body
-  end
-
 fun router (req: Smelly.request) =
-  case (method req, String.tokens (eq #"/") (path req)) of
-      (Http.Request.GET, []) => mkResponse Http.StatusCode.OK "text/plain" "Hello, World!\n"
-    | _ => mkResponse Http.StatusCode.NotFound "text/plain" "Not found\n"
+  let
+    val method = Smelly.method req
+    val path = String.tokens (eq #"/") (Smelly.path req)
+  in
+    case (method, path) of
+      (Http.Request.GET, []) => Smelly.textResponse Http.StatusCode.OK [] "Hello, World!\n"
+    | (Http.Request.GET, name::_) => Smelly.textResponse Http.StatusCode.OK [] ("Hello, " ^ name ^ "!\n")
+    | _ => Smelly.textResponse Http.StatusCode.NotFound [] "Not found\n"
+  end
 
 fun main () =
   let
     val _ = Log.setLevel Log.INFO
     val sock = INetSock.TCP.socket () : Smelly.listen_sock
     val portOpt = Option.mapPartial Int.fromString (OS.Process.getEnv "PORT")
-    val port = case portOpt of
+    val port =
+      case portOpt of
         NONE => 3000
       | SOME x => x
   in

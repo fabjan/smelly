@@ -30,6 +30,15 @@ type request = {
   sock: active_sock
 }
 
+fun method (req: request) : Http.Request.method =
+  #method (#line req)
+
+fun path (req: request) : string =
+  case #uri (#line req) of
+      Http.Uri.PATH p => #path p
+    | Http.Uri.URL u => #path u
+    | _ => "/"
+
 type response = {
   status: Http.StatusCode.t,
   headers: (string * string) list,
@@ -42,10 +51,19 @@ type http_handler = request -> response
 fun mkResponse status headers body : response =
   {status = status, headers = headers, body = body}
 
+fun textResponse status headers body : response =
+  let
+    val headers = ("Content-Type", "text/plain")::headers
+    val headers = ("Content-Length", Int.toString (String.size body))::headers
+  in
+    mkResponse status headers body
+  end
+
 fun encodeResponse (response: response) : string =
   let
     val line = {version = Http.Version.HTTP_1_0, status = #status response}
     val headers = #headers response
+    val headers = ("Server", "Smelly")::headers
     val body = #body response
   in
     Http.Response.toString {line = line, headers = headers, body = SOME body}
