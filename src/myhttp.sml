@@ -45,43 +45,52 @@ fun encodeResponse (response: response) : string =
     Http.Response.toString {line = line, headers = headers, body = SOME body}
   end
 
-fun slurpUpTo (pattern: string) (sock: active_sock) : Substring.substring =
+datatype slurp_error = NoData | TooMuchData
+
+fun slurpUpTo (pattern: string) (sock: active_sock) : (Substring.substring, slurp_error) result =
   let
-    fun slurp _ 0 = raise Fail "too much header data"
-      | slurp acc tries =
+    fun slurp _ 0 = Error TooMuchData
+      | slurp acc limit =
       let
         val bytes = Socket.recvVec' (sock, 1024, {peek = true, oob = false})
         val s = Byte.bytesToString bytes
-        val _ = Log.debug ("slurping: " ^ s)
         val ss = Substring.full s
+        (* FIXME: what if we get a partial match? *)
         val (prefix, suffix) = Substring.position pattern ss
       in
         case (Substring.isEmpty prefix, Substring.isEmpty suffix) of
-          (true, true) => raise Fail ("pattern not found: " ^ (String.toString pattern))
-        | (_, true) => slurp (s::acc) (tries - 1)
+          (true, true) => Error NoData
+        | (_, true) => slurp (s::acc) (limit - 1)
         | _ =>
             let
               val discardCount = Substring.size prefix
               val _ = Socket.recvVec (sock, discardCount)
+              val slurped = String.concat (List.rev (s::acc))
             in
-              (Substring.full o String.concat o List.rev) (s::acc)
+              Ok (Substring.full slurped)
             end
       end
   in
     slurp [] 8
   end
 
-fun parseRequest (sock: active_sock) : (request, string) result =
-  case Http.Request.parse_line Substring.getc (slurpUpTo "\n" sock) of
-    NONE => Error "cannot parse request line"
-  | SOME (line, _) =>
-      let
-        val headers = Http.Request.parse_headers Substring.getc (slurpUpTo "\r\n\r\n" sock)
-        val headers = Option.map #1 headers
-        val headers = fromOpt [] headers
-      in
-        Ok {line = line, headers = headers, sock = sock}
-      end
+fun parseRequest (sock: active_sock) : (request, Http.StatusCode.t) result =
+  case slurpUpTo "\n" sock of
+    Error _ => Error Http.StatusCode.BadRequest
+  | Ok reqLine =>
+      case Http.Request.parse_line Substring.getc reqLine of
+        NONE => Error Http.StatusCode.BadRequest
+      | SOME (line, _) =>
+          case slurpUpTo "\r\n\r\n" sock of
+            Error _ => Error Http.StatusCode.BadRequest
+          | Ok headers =>
+              let
+                val headers = Http.Request.parse_headers Substring.getc headers
+                val headers = Option.map #1 headers
+                val headers = fromOpt [] headers
+              in
+                Ok {line = line, headers = headers, sock = sock}
+              end
 
 fun serve (sock: listen_sock) handler : unit =
   let
@@ -90,7 +99,7 @@ fun serve (sock: listen_sock) handler : unit =
   in
     Log.debug "Connection accepted, parsing request";
     (case parseRequest clientSock of
-      Error e => Log.error e
+      Error e => Log.error (Http.StatusCode.toString e)
     | Ok req =>
         handler req;
     Socket.close clientSock)
