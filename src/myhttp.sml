@@ -33,6 +33,8 @@ type response = {
   body: string
 }
 
+type http_handler = request -> response
+
 fun mkResponse status headers body : response =
   {status = status, headers = headers, body = body}
 
@@ -92,18 +94,41 @@ fun parseRequest (sock: active_sock) : (request, Http.StatusCode.t) result =
                 Ok {line = line, headers = headers, sock = sock}
               end
 
-fun serve (sock: listen_sock) handler : unit =
+fun respond (sock: active_sock) (rep: response) =
+  let
+    val str = encodeResponse rep
+    val bytes = Byte.stringToBytes str
+    fun pushBytes _ 0 = ()
+      | pushBytes bytes n =
+        let
+          val m = Socket.sendVec (sock, bytes)
+          val bytes = Word8VectorSlice.subslice (bytes, m, NONE)
+        in
+          pushBytes bytes (n - m)
+        end
+  in
+    pushBytes (Word8VectorSlice.full bytes) (Word8Vector.length bytes)
+  end
+
+fun handleClient (sock: active_sock) (handler: http_handler) =
+  let
+    val _ = Log.debug "Connection accepted, parsing request"
+    val req = parseRequest sock
+  in
+    case req of
+      Error e => respond sock (mkResponse e [] "")
+    | Ok req => respond sock (handler req)
+    ;
+    Socket.close sock
+  end
+  handle e => Log.error (exnMessage e)
+
+fun serve (sock: listen_sock) (handler: http_handler) : unit =
   let
     val _ = Log.debug "Waiting for connection..."
     val (clientSock, _) = Socket.accept sock
   in
-    Log.debug "Connection accepted, parsing request";
-    (case parseRequest clientSock of
-      Error e => Log.error (Http.StatusCode.toString e)
-    | Ok req =>
-        handler req;
-    Socket.close clientSock)
-    handle e => Log.error (exnMessage e);
+    handleClient clientSock handler;
     serve sock handler
   end
 

@@ -27,34 +27,21 @@ fun path (req: MyHttp.request) : string =
     | Http.Uri.URL u => #path u
     | _ => "/"
 
-fun pushBytes _ _ 0 = ()
-  | pushBytes sock bytes n =
-    let
-      val m = Socket.sendVec (sock, bytes)
-      val bytes = Word8VectorSlice.subslice (bytes, m, NONE)
-    in
-      pushBytes sock bytes (n - m)
-    end
-
-fun respond (req: MyHttp.request) status contentType body =
+fun mkResponse status contentType body =
   let
     val headers = [
       ("Server", "MyHttp"),
       ("Content-Type", contentType),
       ("Content-Length", Int.toString (String.size body))
     ]
-    val response = MyHttp.mkResponse status headers body
-    val str = MyHttp.encodeResponse response
-    val bytes = Byte.stringToBytes str
-    val sock = #sock req
   in
-    pushBytes sock (Word8VectorSlice.full bytes) (Word8Vector.length bytes)
+    MyHttp.mkResponse status headers body
   end
 
 fun router (req: MyHttp.request) =
   case (method req, String.tokens (eq #"/") (path req)) of
-      (Http.Request.GET, []) => respond req Http.StatusCode.OK "text/plain" "Hello, World!\n"
-    | _ => respond req Http.StatusCode.NotFound "text/plain" "Not found\n"
+      (Http.Request.GET, []) => mkResponse Http.StatusCode.OK "text/plain" "Hello, World!\n"
+    | _ => mkResponse Http.StatusCode.NotFound "text/plain" "Not found\n"
 
 fun main () =
   let
