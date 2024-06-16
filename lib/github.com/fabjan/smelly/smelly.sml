@@ -88,8 +88,8 @@ fun slurpUpTo (pattern: string) (sock: active_sock) : (Substring.substring, slur
         | _ =>
             let
               val discardCount = Substring.size prefix
-              val _ = Socket.recvVec (sock, discardCount)
-              val slurped = String.concat (List.rev (s::acc))
+              val last = Socket.recvVec (sock, discardCount)
+              val slurped = String.concat (List.rev (Byte.bytesToString last::acc))
             in
               Ok (Substring.full slurped)
             end
