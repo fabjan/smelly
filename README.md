@@ -24,11 +24,7 @@ fun router (req: Http.Request.t) =
 fun main () =
   let
     val sock = INetSock.TCP.socket () : Smelly.listen_sock
-    val portOpt = Option.mapPartial Int.fromString (OS.Process.getEnv "PORT")
-    val port =
-      case portOpt of
-        NONE => 3000
-      | SOME x => x
+    val port = 3000
   in
     Socket.Ctl.setREUSEADDR (sock, true);
     Socket.bind (sock, INetSock.any port);
